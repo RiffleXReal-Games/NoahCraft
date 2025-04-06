@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Minecraft Clone</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #87CEEB;
+            font-family: 'Courier New', monospace;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #world {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .block {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background-size: contain;
+            image-rendering: pixelated;
+        }
+
+        #player {
+            position: absolute;
+            width: 24px;
+            height: 48px;
+            background-color: #FF6347;
+            border: 2px solid #000;
+            z-index: 100;
+        }
+
+        #inventory {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 2px solid #fff;
+            padding: 5px;
+            z-index: 200;
+        }
+
+        .inventory-slot {
+            width: 40px;
+            height: 40px;
+            margin: 0 5px;
+            background-color: #8B4513;
+            border: 2px solid #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .inventory-slot.selected {
+            border-color: #FF0;
+            box-shadow: 0 0 10px #FF0;
+        }
+
+        .inventory-slot .block-preview {
+            width: 32px;
+            height: 32px;
+            background-size: contain;
+            image-rendering: pixelated;
+        }
+
+        .inventory-slot .count {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0 2px;
+            font-size: 12px;
+        }
+
+        #cursor {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            border: 2px solid #fff;
+            pointer-events: none;
+            z-index: 150;
+        }
+
+        #debug-info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 5px;
+            font-family: monospace;
+        }
+
+        #instructions {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        /* Mobile Controls */
+        #mobile-controls {
+            position: fixed;
+            bottom: 70px;
+            left: 0;
+            right: 0;
+            display: none;
+            z-index: 300;
+        }
+        
+        #mobile-dpad {
+            position: absolute;
+            left: 20px;
+            bottom: 20px;
+            width: 150px;
+            height: 150px;
+        }
+        
+        .dpad-button {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border: 2px solid #fff;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: black;
+            user-select: none;
+        }
+        
+        #dpad-up {
+            top: 0;
+            left: 50px;
+        }
+        
+        #dpad-left {
+            top: 50px;
+            left: 0;
+        }
+        
+        #dpad-right {
+            top: 50px;
+            left: 100px;
+        }
+        
+        #dpad-down {
+            top: 100px;
+            left: 50px;
+        }
+        
+        #mobile-actions {
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+        }
+        
+        .action-button {
+            width: 60px;
+            height: 60px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            margin: 10px;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            color: black;
+            user-select: none;
+        }
+        
+        #toggle-mobile {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 400;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="world"></div>
+        <div id="player"></div>
+        <div id="cursor"></div>
+        <div id="inventory"></div>
+        <div id="debug-info"></div>
+        <div id="instructions">
+            <h3>Instructions:</h3>
+            <p>WASD or Arrow Keys - Move</p>
+            <p>Left Click - Break block</p>
+            <p>Right Click - Place block</p>
+            <p>1-9 keys - Select inventory slot</p>
+            <p>E - Toggle inventory</p>
+        </div>
+        <div id="toggle-mobile">Toggle Mobile Mode</div>
+        <div id="mobile-controls">
+            <div id="mobile-dpad">
+                <div class="dpad-button" id="dpad-up">↑</div>
+                <div class="dpad-button" id="dpad-left">←</div>
+                <div class="dpad-button" id="dpad-right">→</div>
+                <div class="dpad-button" id="dpad-down">↓</div>
+            </div>
+            <div id="mobile-actions">
+                <div class="action-button" id="action-jump">Jump</div>
+                <div class="action-button" id="action-break">Break</div>
+                <div class="action-button" id="action-place">Place</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game constants
+        const BLOCK_SIZE = 32;
+        const WORLD_WIDTH = 100;
+        const WORLD_HEIGHT = 50;
+        const GRAVITY = 0.5;
+        const JUMP_FORCE = 12;
+        const PLAYER_SPEED = 5;
+
+        // Block types
+        const BLOCK_TYPES = {
+            AIR: 0,
+            DIRT: 1,
+            GRASS: 2,
+            STONE: 3,
+            WOOD: 4,
+            LEAVES: 5,
+            BEDROCK: 6,
+            SAND: 7,
+            WATER: 8,
+            COAL_ORE: 9,
+            IRON_ORE: 10
+        };
+
+        // Block textures
+        const BLOCK_TEXTURES = {
+            [BLOCK_TYPES.DIRT]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' fill=\'%238B4513\'/%3E%3Cpath d=\'M0 0h8v8H0V0zm12 4h6v6h-6V4zm10 10h10v10H22V14zm-18 2h6v6H4v-6zm10 10h8v8h-8v-8z\' fill=\'%23734A08\' fill-opacity=\'.5\'/%3E%3Cpath d=\'M20 0h6v6h-6V0zm-8 8h4v4h-4V8zm10 6h4v4h-4v-4zm-16 8h4v4H6v-4zm18 2h4v4h-4v-20z\' fill=\'%239E6B2E\' fill-opacity=\'.4\'/%3E%3C/svg%3E")',
+            [BLOCK_TYPES.GRASS]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'16\' y=\'16\' fill=\'%238B4513\'/%3E%3Crect width=\'32\' height=\'16\' fill=\'%2363AD2F\'/%3E%3Cpath d=\'M0 0h8v2H0V0zm12 4h6v2h-6V4zm10 2h10v2H22V6zm-18 10h6v2H4v-2zm10 4h8v2h-8v-2z\' fill=\'%2384D840\' fill-opacity=\'.6\'/%3E%3Cpath d=\'M0 16h8v8H0v-8zm12 4h6v6h-6v-6zm10 10h10v2H22v-2zm-18-6h6v6H4v-6z\' fill=\'%23734A08\' fill-opacity=\'.5\'/%3E%3C/svg%3E")',
+            [BLOCK_TYPES.STONE]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' fill=\'%23989898\'/%3E%3Cpath d=\'M0 0h16v16H0V0zm16 16h16v16H16V16z\' fill=\'%23787878\' fill-opacity=\'.4\'/%3E%3Cpath d=\'M8 8h8v8H8V8zm8 8h8v8h-8v-8z\' fill=\'%23A4A4A4\' fill-opacity=\'.3\'/%3E%3Cpath d=\'M4 4h4v4H4V4zm16 0h4v4h-4V4zm-12 12h4v4H8v-4zm16 8h4v4h-4v-4z\' fill=\'%23686868\' fill-opacity=\'.5\'/%3E%3C/svg%3E")',
+            [BLOCK_TYPES.WOOD]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' fill=\'%23A05A2C\'/%3E%3Cpath d=\'M8 0v32M16 0v32M24 0v32\' stroke=\'%23754C24\' stroke-width=\'2\'/%3E%3Cpath d=\'M0 8h32M0 16h32M0 24h32\' stroke=\'%23603813\' stroke-width=\'1\'/%3E%3C/svg%3E")',
+            [BLOCK_TYPES.LEAVES]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' fill=\'%23228B22\'/%3E%3Cpath d=\'M4 4h4v4H4V4zm8 0h4v4h-4V4zm8 0h4v4h-4V4zm4 4h4v4h-4V8zM8 8h4v4H8V8zm8 0h4v4h-4V8zM4 12h4v4H4v-4zm16 0h4v4h-4v-4zm-8 0h4v4h-4v-4zm-8 8h4v4H4v-4zm8 0h4v4h-4v-4zm8 0h4v4h-4v-4zm4 4h4v4h-4v-4zm-16 0h4v4h-4v-4zm8 0h4v4h-4v-4z\' fill=\'%23146314\' fill-opacity=\'.4\'/%3E%3Cpath d=\'M0 0h4v4H0V0zm12 4h4v4h-4V4zm8 0h4v4h-4V4zm-16 8h4v4H4v-4zm16 0h4v4h-4v-4zm-8 4h4v4h-4v-4zm-8 8h4v4H4v-4zm16 0h4v4h-4v-4zm4 4h4v4h-4v-4z\' fill=\'%2332CD32\' fill-opacity=\'.3\'/%3E%3C/svg%3E")',
+            [BLOCK_TYPES.BEDROCK]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' fill=\'%232F4F4F\'/%3E%3Cpath d=\'M0 0h8v8H0V0zm12 4h6v6h-6V4zm10 10h10v10H22V14zm-18 2h6v6H4v-6zm10 10h8v8h-8v-8z\' fill=\'%23192B2B\' fill-opacity=\'.7\'/%3E%3Cpath d=\'M20 0h6v6h-6V0zm-8 8h4v4h-4V8zm10 6h4v4h-4v-4zm-16 8h4v4H6v-4zm18 2h4v4h-4v-4z\' fill=\'%23405959\' fill-opacity=\'.5\'/%3E%3C/svg%3E")',
+            [BLOCK_TYPES.SAND]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' fill=\'%23F4A460\'/%3E%3Cpath d=\'M0 0h4v4H0V0zm8 0h4v4H8V0zm8 0h4v4h-4V0zm8 0h4v4h-4V0zM4 4h4v4H4V4zm8 0h4v4h-4V4zm8 0h4v4h-4V4zM0 8h4v4H0V8zm8 0h4v4H8V8zm8 0h4v4h-4V8zm8 0h4v4h-4V8zM4 12h4v4H4v-4zm8 0h4v4h-4v-4zm8 0h4v4h-4v-4zM0 16h4v4H0v-4zm8 0h4v4H8v-4zm8 0h4v4h-4v-4zm8 0h4v4h-4v-4zM4 20h4v4H4v-4zm8 0h4v4h-4v-4zm8 0h4v4h-4v-4zM0 24h4v4H0v-4zm8 0h4v4H8v-4zm8 0h4v4h-4v-4zm8 0h4v4h-4v-4z\' fill=\'%23E0955C\' fill-opacity=\'.3\'/%3E%3C/svg%3E")',
+            [BLOCK_TYPES.WATER]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' fill=\'%234169E1\'/%3E%3Cpath d=\'M0 4h32v2H0V4zm0 8h32v2H0v-2zm0 8h32v2H0v-2zm0 8h32v2H0v-2z\' fill=\'%232A4BC0\' fill-opacity=\'.4\'/%3E%3Cpath d=\'M0 6h32v1H0V6zm0 8h32v1H0v-1zm0 8h32v1H0v-1zm0 8h32v1H0v-1z\' fill=\'%2377A1FF\' fill-opacity=\'.4\'/%3E%3C/svg%3E")',
+            [BLOCK_TYPES.COAL_ORE]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' fill=\'%23989898\'/%3E%3Cpath d=\'M4 4h8v8H4V4zm16 0h8v8h-8V4zM4 20h8v8H4v-8zm16 0h8v8h-8v-8z\' fill=\'%23303030\' fill-opacity=\'.9\'/%3E%3Cpath d=\'M6 6h4v4H6V6zm16 0h4v4h-4V6zM6 22h4v4H6v-4zm16 0h4v4h-4v-4z\' fill=\'%23111\' fill-opacity=\'.9\'/%3E%3C/svg%3E")',
+            [BLOCK_TYPES.IRON_ORE]: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' fill=\'%23989898\'/%3E%3Cpath d=\'M4 4h6v6H4V4zm12 2h6v6h-6V6zM6 18h6v6H6v-6zm14 2h6v6h-6v-6z\' fill=\'%23C77D4F\' fill-opacity=\'.8\'/%3E%3Cpath d=\'M6 6h2v2H6V6zm12 2h2v2h-2V8zM8 20h2v2H8v-2zm14 2h2v2h-2v-2z\' fill=\'%23E8AC7E\' fill-opacity=\'.8\'/%3E%3C/svg%3E")'
+        };
+
+        // Game state
+        let world = [];
+        let player = {
+            x: 0,
+            y: 0,
+            width: 24,
+            height: 48,
+            velocityX: 0,
+            velocityY: 0,
+            isJumping: false,
+            direction: 'right'
+        };
+        let isMobileMode = false;
+        let camera = {
+            x: 0,
+            y: 0
+        };
+        let keys = {};
+        let inventory = [
+            { type: BLOCK_TYPES.DIRT, count: 64 },
+            { type: BLOCK_TYPES.STONE, count: 64 },
+            { type: BLOCK_TYPES.WOOD, count: 32 },
+            { type: BLOCK_TYPES.LEAVES, count: 32 },
+            { type: BLOCK_TYPES.SAND, count: 32 },
+            { type: BLOCK_TYPES.WATER, count: 16 },
+            { type: null, count: 0 },
+            { type: null, count: 0 },
+            { type: null, count: 0 }
+        ];
+        let selectedInventorySlot = 0;
+        let cursor = {
+            x: 0,
+            y: 0
+        };
+
+        // DOM elements
+        const worldElement = document.getElementById('world');
+        const playerElement = document.getElementById('player');
+        const inventoryElement = document.getElementById('inventory');
+        const cursorElement = document.getElementById('cursor');
+        const debugInfoElement = document.getElementById('debug-info');
+
+        // Initialize game
+        function initGame() {
+            generateWorld();
+            spawnPlayer();
+            renderInventory();
+            setupEventListeners();
+            gameLoop();
+        }
+
+        // Generate world
+        function generateWorld() {
+            // Initialize world with air
+            for (let x = 0; x < WORLD_WIDTH; x++) {
+                world[x] = [];
+                for (let y = 0; y < WORLD_HEIGHT; y++) {
+                    world[x][y] = BLOCK_TYPES.AIR;
+                }
+            }
+
+            // Generate terrain using perlin-like noise
+            for (let x = 0; x < WORLD_WIDTH; x++) {
+                const surfaceHeight = Math.floor(
+                    WORLD_HEIGHT / 2 + 
+                    Math.sin(x * 0.1) * 3 + 
+                    Math.sin(x * 0.05) * 5
+                );
+
+                // Generate bedrock at bottom
+                world[x][WORLD_HEIGHT - 1] = BLOCK_TYPES.BEDROCK;
+                
+                // Generate stone layer
+                for (let y = surfaceHeight + 3; y < WORLD_HEIGHT - 1; y++) {
+                    world[x][y] = BLOCK_TYPES.STONE;
+                    
+                    // Generate ore veins
+                    if (Math.random() < 0.05) {
+                        const oreType = Math.random() < 0.7 ? BLOCK_TYPES.COAL_ORE : BLOCK_TYPES.IRON_ORE;
+                        world[x][y] = oreType;
+                    }
+                }
+                
+                // Generate dirt layer
+                for (let y = surfaceHeight; y < surfaceHeight + 3; y++) {
+                    world[x][y] = BLOCK_TYPES.DIRT;
+                }
+                
+                // Generate grass on top of dirt
+                world[x][surfaceHeight - 1] = BLOCK_TYPES.GRASS;
+                
+                // Generate water pools
+                if (surfaceHeight > WORLD_HEIGHT / 2 + 2) {
+                    for (let y = WORLD_HEIGHT / 2; y < surfaceHeight - 1; y++) {
+                        world[x][y] = BLOCK_TYPES.WATER;
+                    }
+                }
+                
+                // Generate sand near water
+                if (world[x][surfaceHeight] === BLOCK_TYPES.DIRT && 
+                    (x > 0 && world[x-1][surfaceHeight-1] === BLOCK_TYPES.WATER || 
+                     x < WORLD_WIDTH - 1 && world[x+1][surfaceHeight-1] === BLOCK_TYPES.WATER)) {
+                    world[x][surfaceHeight] = BLOCK_TYPES.SAND;
+                    world[x][surfaceHeight - 1] = BLOCK_TYPES.SAND;
+                }
+                
+                // Generate trees
+                if (Math.random() < 0.05 && surfaceHeight < WORLD_HEIGHT / 2) {
+                    const treeHeight = 4 + Math.floor(Math.random() * 3);
+                    
+                    // Trunk
+                    for (let y = surfaceHeight - 2; y > surfaceHeight - 2 - treeHeight; y--) {
+                        if (y >= 0) world[x][y] = BLOCK_TYPES.WOOD;
+                    }
+                    
+                    // Leaves
+                    const leavesY = surfaceHeight - 2 - treeHeight;
+                    for (let lx = x - 2; lx <= x + 2; lx++) {
+                        for (let ly = leavesY - 2; ly <= leavesY + 1; ly++) {
+                            if (lx >= 0 && lx < WORLD_WIDTH && ly >= 0 && ly < WORLD_HEIGHT) {
+                                // Create a round-ish shape
+                                const distance = Math.sqrt(Math.pow(lx - x, 2) + Math.pow(ly - leavesY, 2));
+                                if (distance <= 2.5) {
+                                    world[lx][ly] = BLOCK_TYPES.LEAVES;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            renderWorld();
+        }
+
+        // Render world
+        function renderWorld() {
+            worldElement.innerHTML = '';
+            
+            const visibleBlocksX = Math.ceil(window.innerWidth / BLOCK_SIZE) + 1;
+            const visibleBlocksY = Math.ceil(window.innerHeight / BLOCK_SIZE) + 1;
+            
+            const startX = Math.max(0, Math.floor(camera.x / BLOCK_SIZE));
+            const endX = Math.min(WORLD_WIDTH - 1, startX + visibleBlocksX);
+            
+            const startY = Math.max(0, Math.floor(camera.y / BLOCK_SIZE));
+            const endY = Math.min(WORLD_HEIGHT - 1, startY + visibleBlocksY);
+            
+            for (let x = startX; x <= endX; x++) {
+                for (let y = startY; y <= endY; y++) {
+                    const blockType = world[x][y];
+                    
+                    if (blockType !== BLOCK_TYPES.AIR) {
+                        const blockElement = document.createElement('div');
+                        blockElement.classList.add('block');
+                        blockElement.style.left = (x * BLOCK_SIZE - camera.x) + 'px';
+                        blockElement.style.top = (y * BLOCK_SIZE - camera.y) + 'px';
+                        blockElement.style.background = BLOCK_TEXTURES[blockType];
+                        blockElement.dataset.x = x;
+                        blockElement.dataset.y = y;
+                        blockElement.dataset.type = blockType;
+                        
+                        worldElement.appendChild(blockElement);
+                    }
+                }
+            }
+        }
+
+        // Spawn player
+        function spawnPlayer() {
+            // Find a suitable spawn position (on top of a grass block)
+            for (let x = 5; x < WORLD_WIDTH - 5; x++) {
+                for (let y = 0; y < WORLD_HEIGHT - 1; y++) {
+                    if (world[x][y] === BLOCK_TYPES.GRASS) {
+                        player.x = x * BLOCK_SIZE;
+                        player.y = (y - 1) * BLOCK_SIZE - player.height;
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Update player position
+        function updatePlayer() {
+            // Apply gravity
+            player.velocityY += GRAVITY;
+            
+            // Apply horizontal movement
+            if (keys['ArrowLeft'] || keys['a']) {
+                player.velocityX = -PLAYER_SPEED;
+                player.direction = 'left';
+            } else if (keys['ArrowRight'] || keys['d']) {
+                player.velocityX = PLAYER_SPEED;
+                player.direction = 'right';
+            } else {
+                player.velocityX = 0;
+            }
+            
+            // Jump
+            if ((keys['ArrowUp'] || keys['w'] || keys[' ']) && !player.isJumping) {
+                player.velocityY = -JUMP_FORCE;
+                player.isJumping = true;
+            }
+            
+            // Apply velocity
+            const newX = player.x + player.velocityX;
+            const newY = player.y + player.velocityY;
+            
+            // Check for collision with blocks
+            if (checkCollision(newX, player.y)) {
+                player.velocityX = 0;
+            } else {
+                player.x = newX;
+            }
+            
+            if (checkCollision(player.x, newY)) {
+                if (player.velocityY > 0) {
+                    player.isJumping = false;
+                }
+                player.velocityY = 0;
+            } else {
+                player.y = newY;
+                player.isJumping = true;
+            }
+            
+            // Update camera position to follow player
+            camera.x = player.x + player.width / 2 - window.innerWidth / 2;
+            camera.y = player.y + player.height / 2 - window.innerHeight / 2;
+            
+            // Clamp camera position
+            camera.x = Math.max(0, Math.min(camera.x, WORLD_WIDTH * BLOCK_SIZE - window.innerWidth));
+            camera.y = Math.max(0, Math.min(camera.y, WORLD_HEIGHT * BLOCK_SIZE - window.innerHeight));
+            
+            // Update player element position
+            playerElement.style.left = (player.x - camera.x) + 'px';
+            playerElement.style.top = (player.y - camera.y) + 'px';
+            
+            // Update debug info
+            const blockX = Math.floor((player.x + player.width / 2) / BLOCK_SIZE);
+            const blockY = Math.floor((player.y + player.height / 2) / BLOCK_SIZE);
+            debugInfoElement.textContent = `Position: (${blockX}, ${blockY})`;
+            
+            // Update cursor position
+            cursorElement.style.left = (Math.floor(cursor.x / BLOCK_SIZE) * BLOCK_SIZE - camera.x) + 'px';
+            cursorElement.style.top = (Math.floor(cursor.y / BLOCK_SIZE) * BLOCK_SIZE - camera.y) + 'px';
+        }
+
+        // Check collision with blocks
+        function checkCollision(x, y) {
+            const playerLeft = x;
+            const playerRight = x + player.width;
+            const playerTop = y;
+            const playerBottom = y + player.height;
+            
+            const blockLeft = Math.floor(playerLeft / BLOCK_SIZE);
+            const blockRight = Math.floor(playerRight / BLOCK_SIZE);
+            const blockTop = Math.floor(playerTop / BLOCK_SIZE);
+            const blockBottom = Math.floor(playerBottom / BLOCK_SIZE);
+            
+            for (let x = blockLeft; x <= blockRight; x++) {
+                for (let y = blockTop; y <= blockBottom; y++) {
+                    if (x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT) {
+                        const blockType = world[x][y];
+                        if (blockType !== BLOCK_TYPES.AIR && blockType !== BLOCK_TYPES.WATER) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        // Break block
+        function breakBlock(x, y) {
+            if (x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT) {
+                const blockType = world[x][y];
+                
+                if (blockType !== BLOCK_TYPES.AIR && blockType !== BLOCK_TYPES.BEDROCK) {
+                    // Add block to inventory
+                    addToInventory(blockType);
+                    
+                    // Remove block from world
+                    world[x][y] = BLOCK_TYPES.AIR;
+                    
+                    // Update rendering
+                    renderWorld();
+                    renderInventory();
+                }
+            }
+        }
+
+        // Place block
+        function placeBlock(x, y) {
+            if (x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT) {
+                // Check if block can be placed
+                if (world[x][y] === BLOCK_TYPES.AIR || world[x][y] === BLOCK_TYPES.WATER) {
+                    const selectedSlot = inventory[selectedInventorySlot];
+                    
+                    if (selectedSlot.type !== null && selectedSlot.count > 0) {
+                        // Place block
+                        world[x][y] = selectedSlot.type;
+                        
+                        // Remove block from inventory
+                        selectedSlot.count--;
+                        if (selectedSlot.count <= 0) {
+                            selectedSlot.type = null;
+                            selectedSlot.count = 0;
+                        }
+                        
+                        // Update rendering
+                        renderWorld();
+                        renderInventory();
+                    }
+                }
+            }
+        }
+
+        // Add block to inventory
+        function addToInventory(blockType) {
+            // First try to add to existing stack
+            for (let i = 0; i < inventory.length; i++) {
+                if (inventory[i].type === blockType && inventory[i].count < 64) {
+                    inventory[i].count++;
+                    return;
+                }
+            }
+            
+            // Then try to add to empty slot
+            for (let i = 0; i < inventory.length; i++) {
+                if (inventory[i].type === null) {
+                    inventory[i].type = blockType;
+                    inventory[i].count = 1;
+                    return;
+                }
+            }
+            
+            // If no free slots, add to selected slot
+            if (inventory[selectedInventorySlot].type === null) {
+                inventory[selectedInventorySlot].type = blockType;
+                inventory[selectedInventorySlot].count = 1;
+            } else {
+                inventory[selectedInventorySlot].count++;
+            }
+        }
+
+        // Render inventory
+        function renderInventory() {
+            inventoryElement.innerHTML = '';
+            
+            for (let i = 0; i < inventory.length; i++) {
+                const slot = document.createElement('div');
+                slot.classList.add('inventory-slot');
+                
+                if (i === selectedInventorySlot) {
+                    slot.classList.add('selected');
+                }
+                
+                if (inventory[i].type !== null) {
+                    const blockPreview = document.createElement('div');
+                    blockPreview.classList.add('block-preview');
+                    blockPreview.style.background = BLOCK_TEXTURES[inventory[i].type];
+                    slot.appendChild(blockPreview);
+                    
+                    const count = document.createElement('div');
+                    count.classList.add('count');
+                    count.textContent = inventory[i].count;
+                    slot.appendChild(count);
+                }
+                
+                inventoryElement.appendChild(slot);
+            }
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Keyboard controls
+            window.addEventListener('keydown', (e) => {
+                keys[e.key] = true;
+                
+                // Inventory selection
+                if (e.key >= '1' && e.key <= '9') {
+                    selectedInventorySlot = parseInt(e.key) - 1;
+                    renderInventory();
+                }
+            });
+            
+            window.addEventListener('keyup', (e) => {
+                keys[e.key] = false;
+            });
+            
+            // Mouse controls
+            window.addEventListener('mousemove', (e) => {
+                cursor.x = e.clientX + camera.x;
+                cursor.y = e.clientY + camera.y;
+            });
+            
+            window.addEventListener('mousedown', (e) => {
+                const blockX = Math.floor((e.clientX + camera.x) / BLOCK_SIZE);
+                const blockY = Math.floor((e.clientY + camera.y) / BLOCK_SIZE);
+                
+                if (e.button === 0) {
+                    // Left click (break block)
+                    breakBlock(blockX, blockY);
+                } else if (e.button === 2) {
+                    // Right click (place block)
+                    placeBlock(blockX, blockY);
+                }
+            });
+            
+            // Prevent context menu on right click
+            window.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+            });
+            
+            // Resize handling
+            window.addEventListener('resize', () => {
+                renderWorld();
+            });
+            
+            // Mobile controls
+            document.getElementById('toggle-mobile').addEventListener('click', toggleMobileMode);
+            
+            // Mobile D-pad controls
+            document.getElementById('dpad-up').addEventListener('touchstart', () => { keys['w'] = true; });
+            document.getElementById('dpad-up').addEventListener('touchend', () => { keys['w'] = false; });
+            document.getElementById('dpad-left').addEventListener('touchstart', () => { keys['a'] = true; });
+            document.getElementById('dpad-left').addEventListener('touchend', () => { keys['a'] = false; });
+            document.getElementById('dpad-right').addEventListener('touchstart', () => { keys['d'] = true; });
+            document.getElementById('dpad-right').addEventListener('touchend', () => { keys['d'] = false; });
+            document.getElementById('dpad-down').addEventListener('touchstart', () => { keys['s'] = true; });
+            document.getElementById('dpad-down').addEventListener('touchend', () => { keys['s'] = false; });
+            
+            // Mobile action buttons
+            document.getElementById('action-jump').addEventListener('touchstart', () => { keys[' '] = true; });
+            document.getElementById('action-jump').addEventListener('touchend', () => { keys[' '] = false; });
+            
+            document.getElementById('action-break').addEventListener('touchstart', () => {
+                const blockX = Math.floor((cursor.x) / BLOCK_SIZE);
+                const blockY = Math.floor((cursor.y) / BLOCK_SIZE);
+                breakBlock(blockX, blockY);
+            });
+            
+            document.getElementById('action-place').addEventListener('touchstart', () => {
+                const blockX = Math.floor((cursor.x) / BLOCK_SIZE);
+                const blockY = Math.floor((cursor.y) / BLOCK_SIZE);
+                placeBlock(blockX, blockY);
+            });
+            
+            // Touch controls for cursor movement
+            worldElement.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                cursor.x = touch.clientX + camera.x;
+                cursor.y = touch.clientY + camera.y;
+            });
+            
+            // Touch inventory selection
+            inventoryElement.addEventListener('touchstart', (e) => {
+                const touch = e.touches[0];
+                const slots = document.querySelectorAll('.inventory-slot');
+                
+                for (let i = 0; i < slots.length; i++) {
+                    const rect = slots[i].getBoundingClientRect();
+                    
+                    if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+                        touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                        selectedInventorySlot = i;
+                        renderInventory();
+                        break;
+                    }
+                }
+            });
+        }
+
+        // Game loop
+        function gameLoop() {
+            updatePlayer();
+            renderWorld();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Toggle mobile mode
+        function toggleMobileMode() {
+            isMobileMode = !isMobileMode;
+            
+            if (isMobileMode) {
+                document.getElementById('mobile-controls').style.display = 'block';
+                document.getElementById('toggle-mobile').textContent = 'Disable Mobile Mode';
+                
+                // Adjust instruction display for mobile
+                document.getElementById('instructions').innerHTML = `
+                    <h3>Mobile Controls:</h3>
+                    <p>D-Pad - Move</p>
+                    <p>Jump Button - Jump</p>
+                    <p>Break Button - Break block</p>
+                    <p>Place Button - Place block</p>
+                    <p>Tap inventory - Select item</p>
+                `;
+            } else {
+                document.getElementById('mobile-controls').style.display = 'none';
+                document.getElementById('toggle-mobile').textContent = 'Enable Mobile Mode';
+                
+                // Restore desktop instructions
+                document.getElementById('instructions').innerHTML = `
+                    <h3>Instructions:</h3>
+                    <p>WASD or Arrow Keys - Move</p>
+                    <p>Left Click - Break block</p>
+                    <p>Right Click - Place block</p>
+                    <p>1-9 keys - Select inventory slot</p>
+                    <p>E - Toggle inventory</p>
+                `;
+            }
+        }
+
+        // Check if on mobile device
+        function checkMobileDevice() {
+            return (
+                /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                (window.innerWidth <= 800)
+            );
+        }
+
+        // Initialize game
+        function init() {
+            initGame();
+            
+            // Auto-enable mobile mode on mobile devices
+            if (checkMobileDevice()) {
+                toggleMobileMode();
+            }
+        }
+
+        // Start the game
+        init();
+    </script>
+</body>
+</html>
